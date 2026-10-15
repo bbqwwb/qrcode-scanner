@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>扫码工具</title>
+<script src="https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: #f5f5f5;
+    color: #333;
+    min-height: 100vh;
+  }
+  .header {
+    background: #fff;
+    padding: 16px 20px;
+    text-align: center;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    position: sticky;
+    top: 0;
+    z-index: 10;
+  }
+  .header h1 {
+    font-size: 18px;
+    font-weight: 600;
+    color: #1a1a1a;
+  }
+  .container {
+    padding: 20px;
+    max-width: 480px;
+    margin: 0 auto;
+  }
+  .scan-btn {
+    display: block;
+    width: 100%;
+    padding: 16px;
+    font-size: 17px;
+    font-weight: 600;
+    color: #fff;
+    background: #07c160;
+    border: none;
+    border-radius: 12px;
+    cursor: pointer;
+    transition: background 0.2s;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .scan-btn:active { background: #06ad56; }
+  .scan-btn.stop {
+    background: #fa5151;
+  }
+  .scan-btn.stop:active { background: #e04545; }
+  #reader {
+    margin-top: 20px;
+    border-radius: 12px;
+    overflow: hidden;
+    display: none;
+    background: #000;
+  }
+  #reader.active { display: block; }
+  .results {
+    margin-top: 20px;
+  }
+  .results h2 {
+    font-size: 15px;
+    color: #888;
+    margin-bottom: 12px;
+    padding-left: 4px;
+  }
+  .result-item {
+    background: #fff;
+    border-radius: 12px;
+    padding: 14px 16px;
+    margin-bottom: 10px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+    word-break: break-all;
+    animation: slideIn 0.25s ease;
+  }
+  @keyframes slideIn {
+    from { opacity: 0; transform: translateY(-8px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  .result-item .time {
+    font-size: 12px;
+    color: #aaa;
+    margin-bottom: 6px;
+  }
+  .result-item .content {
+    font-size: 15px;
+    line-height: 1.5;
+    color: #333;
+  }
+  .result-item .content a {
+    color: #576b95;
+    text-decoration: none;
+  }
+  .result-actions {
+    margin-top: 10px;
+    display: flex;
+    gap: 8px;
+  }
+  .result-actions button {
+    padding: 6px 14px;
+    font-size: 13px;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    background: #fafafa;
+    color: #555;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .result-actions button:active { background: #eee; }
+  .empty {
+    text-align: center;
+    color: #bbb;
+    font-size: 14px;
+    margin-top: 40px;
+  }
+  .badge {
+    display: inline-block;
+    background: #07c160;
+    color: #fff;
+    font-size: 12px;
+    padding: 2px 8px;
+    border-radius: 10px;
+    margin-left: 8px;
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>📷 扫码工具</h1>
+</div>
+
+<div class="container">
+  <button class="scan-btn" id="scanBtn" onclick="toggleScan()">开始扫码</button>
+  <div id="reader"></div>
+
+  <div class="results" id="resultsSection" style="display:none;">
+    <h2>扫码结果 <span class="badge" id="countBadge">0</span></h2>
+    <div id="resultsList"></div>
+  </div>
+
+  <div class="empty" id="emptyTip">点击上方按钮，调用相机扫描二维码</div>
+</div>
+
+<script>
+let html5QrCode = null;
+let scanning = false;
+let results = [];
+
+function toggleScan() {
+  if (scanning) {
+    stopScan();
+  } else {
+    startScan();
+  }
+}
+
+function startScan() {
+  const btn = document.getElementById('scanBtn');
+  const reader = document.getElementById('reader');
+
+  html5QrCode = new Html5Qrcode("reader");
+
+  const config = {
+    fps: 10,
+    qrbox: function(viewfinderWidth, viewfinderHeight) {
+      const minEdge = Math.min(viewfinderWidth, viewfinderHeight);
+      return { width: minEdge * 0.75, height: minEdge * 0.75 };
+    },
+    aspectRatio: 1.0
+  };
+
+  html5QrCode.start(
+    { facingMode: "environment" },
+    config,
+    onScanSuccess,
+    onScanFailure
+  ).then(() => {
+    scanning = true;
+    reader.classList.add('active');
+    btn.textContent = '停止扫码';
+    btn.classList.add('stop');
+    document.getElementById('emptyTip').style.display = 'none';
+  }).catch(err => {
+    alert('无法启动相机：' + (err.message || err) + '\n\n请确保：\n1. 使用 HTTPS 或 localhost 访问\n2. 已授权相机权限');
+  });
+}
+
+function stopScan() {
+  const btn = document.getElementById('scanBtn');
+  const reader = document.getElementById('reader');
+
+  if (html5QrCode) {
+    html5QrCode.stop().then(() => {
+      html5QrCode.clear();
+      html5QrCode = null;
+    }).catch(() => {});
+  }
+
+  scanning = false;
+  reader.classList.remove('active');
+  btn.textContent = '开始扫码';
+  btn.classList.remove('stop');
+}
+
+function onScanSuccess(decodedText) {
+  // 去重：如果最新一条和当前一样就跳过
+  if (results.length > 0 && results[0].text === decodedText) return;
+
+  const now = new Date();
+  const timeStr = now.toLocaleTimeString('zh-CN', { hour12: false });
+
+  results.unshift({ text: decodedText, time: timeStr });
+  renderResults();
+
+  // 震动反馈
+  if (navigator.vibrate) navigator.vibrate(100);
+}
+
+function onScanFailure() {
+  // ignore
+}
+
+function renderResults() {
+  const section = document.getElementById('resultsSection');
+  const list = document.getElementById('resultsList');
+  const badge = document.getElementById('countBadge');
+
+  section.style.display = 'block';
+  badge.textContent = results.length;
+
+  list.innerHTML = results.map((r, i) => {
+    const isUrl = /^https?:\/\//i.test(r.text);
+    const display = isUrl
+      ? `<a href="${escapeHtml(r.text)}" target="_blank">${escapeHtml(r.text)}</a>`
+      : escapeHtml(r.text);
+
+    return `
+      <div class="result-item">
+        <div class="time">${r.time}</div>
+        <div class="content">${display}</div>
+        <div class="result-actions">
+          <button onclick="copyText(${i})">复制</button>
+          ${isUrl ? `<button onclick="window.open('${escapeJs(r.text)}','_blank')">打开链接</button>` : ''}
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+function copyText(index) {
+  const text = results[index].text;
+  if (navigator.clipboard) {
+    navigator.clipboard.writeText(text).then(() => {
+      toast('已复制');
+    });
+  } else {
+    // fallback
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand('copy');
+    document.body.removeChild(ta);
+    toast('已复制');
+  }
+}
+
+function toast(msg) {
+  const el = document.createElement('div');
+  el.textContent = msg;
+  el.style.cssText = 'position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,0.7);color:#fff;padding:8px 20px;border-radius:20px;font-size:14px;z-index:999;';
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), 1500);
+}
+
+function escapeHtml(s) {
+  const d = document.createElement('div');
+  d.textContent = s;
+  return d.innerHTML;
+}
+
+function escapeJs(s) {
+  return s.replace(/'/g, "\\'").replace(/"/g, '\\"');
+}
+</script>
+</body>
+</html>
