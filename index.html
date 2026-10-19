@@ -178,7 +178,30 @@ async function startScan() {
       var imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
       var code = jsQR(imageData.data, imageData.width, imageData.height, { inversionAttempts: 'dontInvert' });
       if (code) {
-        onScanSuccess(code.data);
+        var text = code.data;
+        // 如果有 binaryData，尝试手动解码（修复非 ASCII 字符截断问题）
+        if (code.binaryData && code.binaryData.length > 0) {
+          try {
+            var bytes = new Uint8Array(code.binaryData);
+            // 检查是否包含非 UTF-8 字节
+            var hasHighBytes = false;
+            for (var i = 0; i < bytes.length; i++) {
+              if (bytes[i] > 127) { hasHighBytes = true; break; }
+            }
+            if (hasHighBytes) {
+              // 尝试多种解码
+              var utf8 = new TextDecoder('utf-8').decode(bytes);
+              var gbk = new TextDecoder('gbk').decode(bytes);
+              // 选择看起来更合理的结果
+              if (utf8 && !utf8.includes('\uFFFD') && utf8.length >= text.length) {
+                text = utf8;
+              } else if (gbk && !gbk.includes('\uFFFD') && gbk.length >= text.length) {
+                text = gbk;
+              }
+            }
+          } catch (e) { /* fallback to code.data */ }
+        }
+        onScanSuccess(text);
       }
     }, 300);
 
