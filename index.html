@@ -365,12 +365,24 @@ async function startScan() {
             var hasHigh = false;
             for (var i = 0; i < bytes.length; i++) { if (bytes[i] > 127) { hasHigh = true; break; } }
             if (hasHigh) {
-              var utf8 = new TextDecoder('utf-8').decode(bytes);
+              // 优先尝试 GBK（国产设备常用）
               var gbk = new TextDecoder('gbk').decode(bytes);
-              if (utf8 && !utf8.includes('\uFFFD') && utf8.length >= text.length) text = utf8;
-              else if (gbk && !gbk.includes('\uFFFD') && gbk.length >= text.length) text = gbk;
+              var utf8 = new TextDecoder('utf-8', { fatal: true }).decode(bytes);
+              // 如果 UTF-8 解码成功且没有乱码字符，用 UTF-8
+              if (utf8 && !utf8.includes('\uFFFD')) {
+                text = utf8;
+              } else {
+                // 否则用 GBK
+                text = gbk;
+              }
             }
-          } catch (e) {}
+          } catch (e) {
+            // 如果 UTF-8 解码失败（fatal），用 GBK
+            try {
+              var bytes = new Uint8Array(code.binaryData);
+              text = new TextDecoder('gbk').decode(bytes);
+            } catch (e2) {}
+          }
         }
         onScanSuccess(text);
       }
