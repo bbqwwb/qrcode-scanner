@@ -287,18 +287,46 @@ function checkSubmit() {
 }
 
 // 提交
-function submitData() {
+async function submitData() {
   if (!selectedRegion || !codeValue) return;
-  var data = {
-    region: selectedRegion,
-    codeType: codeType,
-    codeValue: codeValue,
-    timestamp: new Date().toISOString()
-  };
-  // TODO: 替换为实际接口
-  // fetch('/api/demo-device', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(data) })
-  console.log('提交数据:', JSON.stringify(data, null, 2));
-  toast('✅ 提交成功（模拟）');
+  
+  var submitBtn = document.getElementById('submitBtn');
+  submitBtn.disabled = true;
+  submitBtn.textContent = '提交中...';
+  
+  try {
+    var response = await fetch('https://kh-api-sit.midea-hotwater.com/ed/v2/setScanWhiteList', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        data: {
+          code: codeValue,
+          area: selectedRegion
+        }
+      })
+    });
+    
+    if (response.ok) {
+      var result = await response.json();
+      toast('✅ 提交成功');
+      // 清空选择
+      selectedRegion = null;
+      codeValue = null;
+      codeType = null;
+      document.querySelectorAll('.region-item').forEach(function(e) { e.classList.remove('selected'); });
+      document.getElementById('manualInput').value = '';
+      hideResult();
+      checkSubmit();
+    } else {
+      toast('❌ 提交失败：' + response.status);
+    }
+  } catch (err) {
+    toast('❌ 网络错误：' + err.message);
+  } finally {
+    submitBtn.disabled = false;
+    submitBtn.textContent = '提交';
+    checkSubmit();
+  }
 }
 
 // Toast
