@@ -306,8 +306,13 @@ async function submitData() {
       })
     });
     
-    if (response.ok) {
-      var result = await response.json();
+    if (!response.ok) {
+      toast('❌ 提交失败：HTTP ' + response.status);
+      return;
+    }
+    
+    var result = await response.json();
+    if (result.retCode === '0') {
       toast('✅ 提交成功');
       // 清空选择
       selectedRegion = null;
@@ -318,7 +323,7 @@ async function submitData() {
       hideResult();
       checkSubmit();
     } else {
-      toast('❌ 提交失败：' + response.status);
+      toast('❌ 提交失败：' + (result.desc || '未知错误'));
     }
   } catch (err) {
     toast('❌ 网络错误：' + err.message);
